@@ -17,9 +17,9 @@ def _get_stage_model_version(client: MlflowClient):
 
 
 def build_model_image():
-    client = # Insert your code here
-    stage_version = # Insert your code here
-    
+    client = mlflow.MlflowClient()
+    stage_version = _get_stage_model_version(client)
+
     if not stage_version:
         print(f"No model found in stage '{STAGE}' for '{MODEL_NAME}'.")
         print("Run: make workflow")
@@ -27,27 +27,35 @@ def build_model_image():
 
     model_uri = f"runs:/{stage_version.run_id}/model"
 
-    print(f"=== Building Docker Image for {MODEL_NAME} v{stage_version.version} ({STAGE}) ===")
+    print(
+        f"=== Building Docker Image for {MODEL_NAME} v{stage_version.version} ({STAGE}) ==="
+    )
     print(f"Using URI: {model_uri}")
     print(f"Target Image Name: {DOCKER_IMAGE_NAME}")
 
-    
     try:
-        # Insert your code here
         # MLflow built-in function to generate a Docker image containing the model
-        
+        # Insert your code here
+        mlflow.models.build_docker(
+            model_uri=model_uri,
+            name=DOCKER_IMAGE_NAME,
+            enable_mlserver=False,
+        )
 
-
-        print(f"\n✓ SUCCESS: Docker image '{DOCKER_IMAGE_NAME}' built successfully.")
+        print(
+            f"\n✓ SUCCESS: Docker image '{DOCKER_IMAGE_NAME}' built successfully."
+        )
         print(f"Run it with: docker run -p 5000:8080 {DOCKER_IMAGE_NAME}")
-        
+
     except Exception as e:
-        print(f"\n✗ ERROR: Failed to build image.")
+        print("\n✗ ERROR: Failed to build image.")
         print(f"Details: {e}")
         print("\nTroubleshooting:")
         print("1. Ensure Docker daemon is running")
         print(f"2. Verify model '{MODEL_NAME}' exists in stage '{STAGE}'")
-        print("3. Check that the model has actual artifacts (not just metadata)")
+        print(
+            "3. Check that the model has actual artifacts (not just metadata)"
+        )
 
 
 if __name__ == "__main__":
