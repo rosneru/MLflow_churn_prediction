@@ -28,7 +28,43 @@ services:
 
   # ---- Central MLflow Tracking Server ----
   mlflow-server:
-    
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: churn-prediction-env
+    container_name: mlflow_server
+    ports:
+      - target: 5000
+        published: 5000
+        protocol: tcp
+        mode: host
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # The MLFLOW_TRACKING_URI variable tells the MLflow client which tracking
+      # server to send runs, parameters, metrics, and models to.
+      # - The code in the container—for example, `python src/pipeline.py`—calls
+      #   `mlflow.log_metric()`, `mlflow.log_model()`, and similar functions.
+      #   Without a URI specified, MLflow would write locally to a `./mlruns`
+      #   folder in the container, and the server would not see any of this.
+      # - With `http://mlflow-server:5000`, all HTTP requests are sent to the
+      #   `mlflow-server` service. The runs then appear in the web UI, are 
+      #   stored in Postgres, and are available in the Model Registry.
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+    volumes:
+      - mlruns_data:/mlruns
+    # NOTE: > is a folded scalar: The following indented lines are combined
+    #       into a single string, with line breaks replaced by spaces.
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+      --default-artifact-root /mlruns
+      --workers 2
+      --allowed-hosts "*"
+
   # ---- Pipeline Runner ----
   pipeline-runner:
     build:
