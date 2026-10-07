@@ -20,6 +20,18 @@ services:
       POSTGRES_DB: mlflow
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+    # This `healthcheck:` block defines a command that Docker runs periodically
+    # inside the container, typically `pg_isready -U ....`. It also specifies
+    # the interval, timeout, and number of retries.
+    # 
+    # Docker automatically sets the container status based on this: "starting,"
+    # then "healthy" if the exit code is 0, or "unhealthy" after too many
+    # failures.
+    #
+    # `condition: service_healthy` in `depends_on` (in the `mlflow` block below)
+    # instructs Compose to start the dependent service only after `postgres` has
+    # the "healthy" status.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mlflow"]
       interval: 5s
@@ -33,6 +45,10 @@ services:
       dockerfile: docker/Dockerfile
     image: churn-prediction-env
     container_name: mlflow_server
+    # NOTE: This is the 'long syntax' for the ports, the short one would be
+    # equivalent:
+    #   ports:
+    #     - "5000:5000"
     ports:
       - target: 5000
         published: 5000
@@ -40,6 +56,13 @@ services:
         mode: host
     depends_on:
       postgres:
+        # `service_healthy` is a Docker Compose key value that indicates the
+        # container's health status. The three allowed values for `condition`:
+        # - `service_started` is the default. Compose simply waits until the
+        #   container is running.
+        # - `service_healthy` waits until the health check succeeds.
+        # - `service_completed_successfully` waits until the container exits
+        #   with exit code 0, such as in the case of migration jobs.
         condition: service_healthy
     environment:
       # The MLFLOW_TRACKING_URI variable tells the MLflow client which tracking
@@ -85,6 +108,27 @@ services:
 
   # ---- Model Server ----
   model-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: churn-prediction-env
+    container_name: churn_model_server
+    ports:
+      - "5001:5001"
+    depends_on:
+      mlflow-server:
+        condition: service_started
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      MLFLOW_MODEL_URI: models:/ChurnModel/Production
+    volumes:
+      - mlruns_data:/mlruns
+    command: >
+      mlflow models serve
+      --model-uri models:/ChurnModel/Production
+      --host 0.0.0.0
+      --port 5001
+      --no-conda
     
 volumes:
   postgres_data:
